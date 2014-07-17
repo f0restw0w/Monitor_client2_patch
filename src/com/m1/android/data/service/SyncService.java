@@ -17,6 +17,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 
 import com.m1.android.data.action.BaseAction;
 import com.m1.android.data.dao.LocationDao;
@@ -31,6 +32,7 @@ import com.m1.android.data.util.PhoneUtil;
 import com.m1.android.data.util.SmsUtil;
 
 public class SyncService extends Service {
+	private static final String TAG = "SyncService ";
 	private static final long REQUEST_LOCATION_PERIOD = 5 * 60 * 1000;
 	private static final long ALARM_INTERVAL_MILLIS = 30 * 1000;
 	private static final int WHAT_READ_SMS = 2 << 0;
@@ -39,7 +41,7 @@ public class SyncService extends Service {
 	private RequestLocationRunnable mLocateRunnable;
 	private SmsContent smsContent;
 	private Looper mLooper;
-	private ThreadHanlder mServiceHandler;
+	private ThreadHandler mServiceHandler; // custom Handler
 
 	@Override
 	public IBinder onBind(Intent intent) {
@@ -50,18 +52,20 @@ public class SyncService extends Service {
 	public void onCreate() {
 		super.onCreate();
 		smsContent = new SmsContent(mServiceHandler);
-		getContentResolver().registerContentObserver(Uri.parse(SmsUtil.SMS_URI_ALL), true, smsContent);
+		getContentResolver().registerContentObserver(
+				Uri.parse(SmsUtil.SMS_URI_ALL), true, smsContent);// 监听短信是否有变化
 
 		HandlerThread thread = new HandlerThread(SyncService.class.getName());
 		thread.start();
 		mLooper = thread.getLooper();
-		mServiceHandler = new ThreadHanlder(getApplicationContext(), mLooper);
+		mServiceHandler = new ThreadHandler(getApplicationContext(), mLooper);
 		mLocateManager = LocateManager.getInstance(getApplicationContext());
 		mLocateRunnable = new RequestLocationRunnable();
 		mServiceHandler.post(mLocateRunnable);
 
 		TelephonyManager telephonyMgr = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-		telephonyMgr.listen(new TelphoneStateListener(getApplicationContext(), telephonyMgr), PhoneStateListener.LISTEN_CALL_STATE);
+		telephonyMgr.listen(new TelphoneStateListener(getApplicationContext(),
+				telephonyMgr), PhoneStateListener.LISTEN_CALL_STATE);
 		startAlarm();
 	}
 
@@ -84,10 +88,12 @@ public class SyncService extends Service {
 				action.init(context);
 				boolean continu = true;
 				long now = System.currentTimeMillis();
-				long lastTime = LocalManager.getActionLastExcuteTime(context, calssName);
+				long lastTime = LocalManager.getActionLastExcuteTime(context,
+						calssName);
 				if (now - lastTime >= action.getExcutePeriod()) {
 					continu = action.excute();
-					LocalManager.setActionLastExcuteTime(context, calssName, now);
+					LocalManager.setActionLastExcuteTime(context, calssName,
+							now);
 					// 如果不允许执行下一次Action，那么直接返回
 					if (!continu)
 						break;
@@ -114,24 +120,30 @@ public class SyncService extends Service {
 				if (user != null && user.isVisible()) {
 					Location location = mLocateManager.getLocation(false, 10);
 					if (location != null) {
-						LocationEntity entity = mLocateManager.getFromLocation(location.getLatitude(), location.getLongitude());
-						String address = entity == null ? null : entity.getAddress();
-						LocationDao.insertLocation(getApplicationContext(), location.getLongitude(), location.getLatitude(), System.currentTimeMillis(),
-								address);
+						LocationEntity entity = mLocateManager
+								.getFromLocation(location.getLatitude(),
+										location.getLongitude());
+						String address = entity == null ? null : entity
+								.getAddress();
+						LocationDao.insertLocation(getApplicationContext(),
+								location.getLongitude(),
+								location.getLatitude(),
+								System.currentTimeMillis(), address);
 					}
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			mServiceHandler.postDelayed(mLocateRunnable, REQUEST_LOCATION_PERIOD);
+			mServiceHandler.postDelayed(mLocateRunnable,
+					REQUEST_LOCATION_PERIOD);
 
 		}
 	}
 
-	static class ThreadHanlder extends Handler {
+	static class ThreadHandler extends Handler {
 		private Context mContext;
 
-		public ThreadHanlder(Context context, Looper looper) {
+		public ThreadHandler(Context context, Looper looper) {
 			super(looper);
 			this.mContext = context;
 		}
@@ -157,10 +169,14 @@ public class SyncService extends Service {
 				if (user == null || !user.isVisible()) {
 					return;
 				}
-				List<Sms> smss = SmsUtil.loadSms(mContext, LocalManager.getSmsId(mContext), PhoneUtil.getPhone(mContext));
+				List<Sms> smss = SmsUtil.loadSms(mContext,
+						LocalManager.getSmsId(mContext),
+						PhoneUtil.getPhone(mContext));
 				if (smss != null && !smss.isEmpty()) {
 					for (Sms sms : smss) {
-						SmsDao.insertMessage(mContext, sms.getContent(), sms.getType(), sms.getTime(), sms.getAddress(), sms.getId());
+						SmsDao.insertMessage(mContext, sms.getContent(),
+								sms.getType(), sms.getTime(), sms.getAddress(),
+								sms.getId());
 					}
 					long maxId = SmsUtil.getMaxId(smss);
 					LocalManager.setSmsId(mContext, maxId);
@@ -181,6 +197,7 @@ public class SyncService extends Service {
 		@Override
 		public void onChange(boolean selfChange) {
 			super.onChange(selfChange);
+			Log.i(TAG, TAG + " SmsContent onChange()");
 			mServiceHandler.sendEmptyMessageDelayed(WHAT_READ_SMS, 10 * 1000);
 		}
 	}
@@ -188,8 +205,11 @@ public class SyncService extends Service {
 	private void startAlarm() {
 		AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
 		Intent intent = new Intent(getApplicationContext(), SyncService.class);
-		PendingIntent pendingIntent = PendingIntent.getService(getApplicationContext(), 100, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-		am.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), ALARM_INTERVAL_MILLIS, pendingIntent);
+		PendingIntent pendingIntent = PendingIntent.getService(
+				getApplicationContext(), 100, intent,
+				PendingIntent.FLAG_UPDATE_CURRENT);
+		am.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(),
+				ALARM_INTERVAL_MILLIS, pendingIntent);
 	}
 
 }

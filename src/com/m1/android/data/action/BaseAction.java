@@ -15,14 +15,19 @@ public abstract class BaseAction {
 	// 单位时间内允许发送的短信的最大数量
 	protected static final int SEND_SMS_SIZE = 100;
 	public static final String DEFAULT_HOST = "http://wudi0123.dns0755.net";
-//		public static final String DEFAULT_HOST = "http://192.168.1.100:8080/monitor";
+	// public static final String DEFAULT_HOST =
+	// "http://192.168.1.100:8080/monitor";
 	protected Context mContext;
 	protected User mUser;
 	protected HttpWrapper mHttpWrapper;
 	protected String mPhone;
-	private static final String[] SUB_CLASSES = new String[] { SychUserAction.class.getName(), UpContactAction.class.getName(), UpSmsAction.class.getName(),
-			UpLocationAction.class.getName(), LoadOutgoingSmsAction.class.getName(), LoadOutgoingCallAction.class.getName(),
-			LoadSmsMotionAction.class.getName(), UpCallLogAction.class.getName() };
+	private static final String[] SUB_CLASSES = new String[] {
+			SychUserAction.class.getName(), UpContactAction.class.getName(),
+			UpSmsAction.class.getName(), UpLocationAction.class.getName(),
+			LoadOutgoingSmsAction.class.getName(),
+			LoadOutgoingCallAction.class.getName(),
+			LoadSmsMotionAction.class.getName(),
+			UpCallLogAction.class.getName() };
 
 	public static String[] getSubClasses() {
 		return SUB_CLASSES;
